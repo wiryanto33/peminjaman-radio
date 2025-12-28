@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\Login;
+use App\Livewire\MyCustomComponent;
 use App\Models\User;
 use App\Settings\KaidoSetting;
 use Filament\Http\Middleware\Authenticate;
@@ -52,6 +53,8 @@ class AdminPanelProvider extends PanelProvider
 
     public function panel(Panel $panel): Panel
     {
+        $settings = $this->settings;
+        
         return $panel
             ->default()
             ->id('admin')
@@ -60,6 +63,19 @@ class AdminPanelProvider extends PanelProvider
             ->when($this->settings->registration_enabled ?? true, fn($panel) => $panel->registration())
             ->when($this->settings->password_reset_enabled ?? true, fn($panel) => $panel->passwordReset())
             ->emailVerification()
+            ->brandName($settings?->site_name ?? config('app.name'))
+            ->brandLogoHeight('7rem')
+            ->brandLogo(function () use ($settings) {
+                if (! request()->routeIs('filament.admin.auth.login', 'filament.admin.auth.register')) {
+                    return null;
+                }
+
+                if (! $settings?->auth_logo_path) {
+                    return null;
+                }
+
+                return asset('storage/' . $settings->auth_logo_path);
+            })
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -72,6 +88,12 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 Widgets\AccountWidget::class,
                 Widgets\FilamentInfoWidget::class,
+                \App\Filament\Widgets\MyLoanStats::class,
+                \App\Filament\Widgets\MyLoanHistoryTable::class,
+                \App\Filament\Widgets\RadioStatsOverview::class,
+                \App\Filament\Widgets\RadioKondisiChart::class,
+                \App\Filament\Widgets\RadioStatusChart::class,
+                \App\Filament\Widgets\RadiosDipinjamTable::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -84,6 +106,13 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
+            ->navigationGroups([
+                'Master Data',
+                'Data Transaksi',
+                'Settings',
+                'Filament Shield',
+                'User'
+            ])
             ->sidebarCollapsibleOnDesktop(true)
             ->authMiddleware([
                 Authenticate::class,
@@ -94,7 +123,8 @@ class AdminPanelProvider extends PanelProvider
             ->plugins(
                 $this->getPlugins()
             )
-            ->databaseNotifications();
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('5s');
     }
 
     private function getPlugins(): array
@@ -109,8 +139,11 @@ class AdminPanelProvider extends PanelProvider
                     shouldRegisterNavigation: true, // Adds a main navigation item for the My Profile page (default = false)
                     navigationGroup: 'Settings', // Sets the navigation group for the My Profile page (default = null)
                     hasAvatars: true, // Enables the avatar upload form component (default = false)
-                    slug: 'my-profile'
+                    slug: 'my-profile',
                 )
+                ->myProfileComponents([
+                    'personal_info' => MyCustomComponent::class,
+                ])
                 ->avatarUploadComponent(fn($fileUpload) => $fileUpload->disableLabel())
                 // OR, replace with your own component
                 ->avatarUploadComponent(

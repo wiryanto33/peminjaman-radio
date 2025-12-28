@@ -11,6 +11,7 @@ use Illuminate\Contracts\View\View;
 use Filament\Http\Responses\Auth\Contracts\LoginResponse;
 use Filament\Models\Contracts\FilamentUser;
 use Illuminate\Validation\ValidationException;
+use App\Models\User;
 
 class Login extends BaseLogin
 {
@@ -28,12 +29,18 @@ class Login extends BaseLogin
 
         $data = $this->form->getState();
 
-        // Check if user exists and was created through social login
-        $user = \App\Models\User::where('email', $data['email'])->first();
-        if ($user && is_null($user->password)) {
-            throw ValidationException::withMessages([
-                'data.email' => 'This account was created using social login. Please login with Google.',
-            ]);
+        // Determine which field is used for login
+        $login = $data['login'] ?? $data['email'] ?? null;
+        $field = $this->resolveLoginField($login);
+
+        // Check if user exists and was created through social login (password is null)
+        if ($login) {
+            $user = User::where($field, $login)->first();
+            if ($user && is_null($user->password)) {
+                throw ValidationException::withMessages([
+                    'data.login' => 'This account was created using social login. Please login with Google.',
+                ]);
+            }
         }
 
         if (! Filament::auth()->attempt($this->getCredentialsFromFormData($data), $data['remember'] ?? false)) {
@@ -59,12 +66,6 @@ class Login extends BaseLogin
     public function mount(): void
     {
         parent::mount();
-
-        $this->form->fill([
-            'email' => 'admin@admin.com',
-            'password' => 'password',
-            'remember' => true,
-        ]);
     }
     /**
      * @return array<int | string, string | Form>
@@ -82,5 +83,42 @@ class Login extends BaseLogin
                     ->statePath('data'),
             ),
         ];
+    }
+
+    protected function getEmailFormComponent(): Component
+    {
+        return TextInput::make('login')
+            ->label('Username/NRP')
+            ->required()
+            ->autofocus()
+            ->autocomplete('username');
+    }
+
+    protected function getCredentialsFromFormData(array $data): array
+    {
+        $login = $data['login'] ?? $data['email'] ?? '';
+        $field = $this->resolveLoginField($login);
+
+        return [
+            $field => $login,
+            'password' => $data['password'] ?? ''
+        ];
+    }
+
+    private function resolveLoginField(?string $login): string
+    {
+        if (empty($login)) {
+            return 'email';
+        }
+
+        if (filter_var($login, FILTER_VALIDATE_EMAIL)) {
+            return 'email';
+        }
+
+        if (preg_match('/^\d+$/', $login)) {
+            return 'nrp';
+        }
+
+        return 'name';
     }
 }

@@ -19,6 +19,9 @@ use Filament\Tables\Actions\ExportAction;
 use Filament\Tables\Actions\ImportAction;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\ImageEntry;
+use Filament\Infolists\Components\Group as InfolistGroup;
+use Illuminate\Support\Facades\Storage;
 use Filament\Tables\Actions\ExportBulkAction;
 use App\Filament\Resources\UserResource\Pages;
 use STS\FilamentImpersonate\Tables\Actions\Impersonate;
@@ -30,20 +33,50 @@ class UserResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
+    protected static ?string $navigationGroup = 'Master Data';
+
+    protected static ?string $navigationLabel = 'Pengguna';
+
+    protected static ?string $modelLabel = 'Pengguna';
+
+    protected static ?string $pluralLabel = 'Pengguna';
+
+
+
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Section::make(
-                    'User Information'
-                )->schema([
-                            TextInput::make('name')
-                                ->required(),
-                            TextInput::make('email')
-                                ->required(),
-                            TextInput::make('password')
-                                ->required(),
-                        ]),
+                Section::make('Personal Information')
+                    ->schema([
+                        TextInput::make('name')
+                            ->required(),
+                        TextInput::make('email')
+                            ->email()
+                            ->required(),
+                    ])->columns(2),
+
+                Section::make('Service Information')
+                    ->schema([
+                        TextInput::make('pangkat')
+                            ->required(),
+                        TextInput::make('korps')
+                            ->required(),
+                        TextInput::make('nrp')
+                            ->required(),
+                        TextInput::make('satuan')
+                            ->required(),
+                    ])->columns(2),
+
+                Section::make('Security')
+                    ->schema([
+                        TextInput::make('password')
+                            ->password()
+                            ->revealable()
+                            ->required(fn (string $operation): bool => $operation === 'create')
+                            ->dehydrateStateUsing(fn ($state) => filled($state) ? $state : null)
+                            ->dehydrated(fn ($state) => filled($state)),
+                    ]),
             ]);
     }
 
@@ -62,8 +95,8 @@ class UserResource extends Resource
                         ->circular()
                         ->grow(false)
                         ->getStateUsing(fn($record) => $record->avatar_url
-                            ? $record->avatar_url
-                            : "https://ui-avatars.com/api/?name=" . urlencode($record->name)),
+                            ? Storage::disk('public')->url($record->avatar_url)
+                            : ("https://ui-avatars.com/api/?name=" . urlencode($record->name))),
                     Tables\Columns\TextColumn::make('name')
                         ->searchable()
                         ->weight(FontWeight::Bold),
@@ -139,10 +172,16 @@ class UserResource extends Resource
     {
         return $infolist
             ->schema([
-                InfolistSection::make('User Information')->schema([
-                    TextEntry::make('name'),
-                    TextEntry::make('email'),
-                ]),
+                InfolistSection::make('User Information')
+                    ->columns(3)
+                    ->schema([
+                            TextEntry::make('name')->label('Name'),
+                            TextEntry::make('email')->label('Email'),
+                            TextEntry::make('pangkat')->label('Pangkat'),
+                            TextEntry::make('korps')->label('Korps'),
+                            TextEntry::make('nrp')->label('NRP'),
+                            TextEntry::make('satuan')->label('Satuan'),
+                    ]),
             ]);
     }
 }

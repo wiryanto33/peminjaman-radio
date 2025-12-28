@@ -16,7 +16,7 @@ use Jeffgreco13\FilamentBreezy\Traits\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable implements FilamentUser, HasAvatar, MustVerifyEmail
+class User extends Authenticatable implements FilamentUser, HasAvatar //,MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasRoles, TwoFactorAuthenticatable, HasApiTokens;
@@ -28,6 +28,10 @@ class User extends Authenticatable implements FilamentUser, HasAvatar, MustVerif
      */
     protected $fillable = [
         'name',
+        'pangkat',
+        'korps',
+        'nrp',
+        'satuan',
         'email',
         'password',
         'avatar_url',
@@ -76,7 +80,8 @@ class User extends Authenticatable implements FilamentUser, HasAvatar, MustVerif
 
     public function getFilamentAvatarUrl(): ?string
     {
-        return $this->avatar_url ? Storage::url($this->avatar_url) : null;
+        // Ensure we generate URLs from the same disk used to upload (public)
+        return $this->avatar_url ? Storage::disk('public')->url($this->avatar_url) : null;
     }
 
     public function canAccessPanel(Panel $panel): bool

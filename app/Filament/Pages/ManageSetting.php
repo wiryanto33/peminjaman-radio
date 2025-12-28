@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Settings\KaidoSetting;
 use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 use Filament\Forms;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -19,6 +20,7 @@ class ManageSetting extends SettingsPage
     protected static string $settings = KaidoSetting::class;
 
     protected static ?string $navigationGroup = 'Settings';
+
 
     public function form(Form $form): Form
     {
@@ -36,6 +38,27 @@ class ManageSetting extends SettingsPage
                         ->label('Password Reset Enabled'),
                     Toggle::make('sso_enabled')
                         ->label('SSO Enabled'),
+                ]),
+                Section::make('Auth Branding')->columns(1)->schema([
+                    FileUpload::make('auth_logo_path')
+                        ->label('Logo Login & Register')
+                        ->image()
+                        ->disk('public')
+                        ->directory('auth')
+                        ->imagePreviewHeight('100'),
+                    FileUpload::make('auth_background_path')
+                        ->label('Background Login & Register')
+                        ->image()
+                        ->disk('public')
+                        ->directory('auth')
+                        ->imagePreviewHeight('200'),
+                    TextInput::make('auth_card_opacity')
+                        ->label('Transparansi Card Login/Register (%)')
+                        ->type('range')
+                        ->minValue(0)
+                        ->maxValue(100)
+                        ->step(5)
+                        ->default(90),
                 ]),
             ]);
     }

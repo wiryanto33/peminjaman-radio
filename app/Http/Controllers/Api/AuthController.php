@@ -14,33 +14,48 @@ class AuthController extends Controller
     //login
     public function login(LoginRequest $request)
     {
-        //validate dengan Auth::attempt
-        if (Auth::attempt($request->only('email', 'password'))) {
-            //jika berhasil buat token
-            $user = User::where('email', $request->email)->first();
-            //token lama dihapus
+        $login = $request->input('login');
+        $field = $this->resolveLoginField($login);
+
+        $credentials = [
+            $field => $login,
+            'password' => $request->input('password'),
+        ];
+
+        if (Auth::attempt($credentials)) {
+            $user = Auth::user();
+            //hapus token lama
             $user->tokens()->delete();
-            //token baru di create
+            //kumpulkan abilities dari permissions
             $abilities = $user->getAllPermissions()->pluck('name')->toArray();
-            // Filter abilities containing ':' and cut any string after '_'
             $abilities = array_map(function ($ability) {
                 return explode('_', $ability)[0];
             }, array_filter($abilities, function ($ability) {
                 return strpos($ability, ':') !== false;
             }));
-            //create token with abilities
+            //buat token baru dengan abilities
             $token = $user->createToken('token', $abilities)->plainTextToken;
 
             return new LoginResource([
                 'token' => $token,
                 'user' => $user
             ]);
-        } else {
-            //jika gagal kirim response error
-            return response()->json([
-                'message' => 'Invalid Credentials'
-            ], 401);
         }
+
+        return response()->json([
+            'message' => 'Invalid Credentials'
+        ], 401);
+    }
+
+    private function resolveLoginField(string $login): string
+    {
+        if (filter_var($login, FILTER_VALIDATE_EMAIL)) {
+            return 'email';
+        }
+        if (preg_match('/^\d+$/', $login)) {
+            return 'nrp';
+        }
+        return 'name';
     }
 
     //register
