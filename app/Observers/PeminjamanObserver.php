@@ -82,6 +82,7 @@ class PeminjamanObserver
                         'Kode: '.($model->kode_peminjaman ?: ('#'.$model->id))."\n".
                         'Peminjam: '.($model->peminjam?->name ?: '-') . "\n" .
                         'Radio: '.($model->radio?->serial_no ?: '-')
+
                     )
                     ->icon('heroicon-o-inbox-arrow-down')
                     ->actions([
@@ -170,6 +171,7 @@ class PeminjamanObserver
                     ->title('Status Peminjaman Diperbarui')
                     ->body(
                         'Kode: '.($model->kode_peminjaman ?: ('#'.$model->id))."\n".
+
                         'Status sekarang: '.ucfirst($model->status)
                     )
                     ->icon('heroicon-o-information-circle')
