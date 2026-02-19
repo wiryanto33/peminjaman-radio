@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Filament\Http\Responses\Auth\Contracts\RegistrationResponse as RegistrationResponseContract;
+use App\Http\Responses\RegisterResponse;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -26,6 +28,12 @@ class AppServiceProvider extends ServiceProvider
         //
         parent::register();
         FilamentView::registerRenderHook('panels::body.end', fn(): string => Blade::render("@vite('resources/js/app.js')"));
+
+        // Bind custom registration response
+        $this->app->singleton(
+            RegistrationResponseContract::class,
+            RegisterResponse::class
+        );
     }
 
     /**

@@ -33,6 +33,8 @@ class User extends Authenticatable implements FilamentUser, HasAvatar //,MustVer
         'nrp',
         'satuan',
         'email',
+        'file',
+        'status',
         'password',
         'avatar_url',
     ];

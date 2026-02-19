@@ -17,6 +17,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Table;
 use Filament\Tables\Actions\Action;
 use Illuminate\Database\Eloquent\Builder;
@@ -103,23 +104,28 @@ class PeminjamanResource extends Resource
                         Select::make('peminjam_id')
                             ->label('Peminjam')
                             ->relationship('peminjam', 'name')
+                            ->default(fn() => auth()->id())
+                            // Hanya disabled jika user BUKAN super_admin atau petugas
+                            ->disabled(fn() => !auth()->user()?->hasAnyRole(['super_admin', 'petugas']))
+                            ->dehydrated()
                             ->searchable()
                             ->preload()
                             ->required(),
 
                         Select::make('petugas_id')
                             ->label('Petugas')
-                            ->relationship('petugas', 'name', function (Builder $query, ?Peminjaman $record) {
-                                $query->where(function ($q) use ($record) {
-                                    $q->whereHas('roles', function ($r) {
-                                        $r->whereIn('name', ['super_admin', 'petugas']);
-                                    });
-                                    if ($record && $record->petugas_id) {
-                                        $q->orWhere('id', $record->petugas_id);
-                                    }
-                                });
+                            ->relationship('petugas', 'name', function (Builder $query) {
+                                // Tetap filter agar hanya user dengan role petugas/admin yang bisa muncul
+                                $query->whereHas('roles', fn($q) => $q->whereIn('name', ['super_admin', 'petugas']));
                             })
-                            ->default(fn() => (auth()->user()?->hasAnyRole(['super_admin', 'petugas']) ?? false) ? auth()->id() : null)
+                            // 1. Matikan input agar tidak bisa dipilih manual oleh peminjam
+                            ->disabled()
+                            // 2. Gunakan dehydrated agar nilainya tetap terkirim saat disave oleh petugas
+                            ->dehydrated()
+                            // 3. Logika pengisian otomatis: Jika yang login adalah petugas/admin,
+                            // maka saat mereka mengedit/approve, nama mereka akan masuk ke sini.
+                            ->default(fn() => auth()->user()?->hasAnyRole(['super_admin', 'petugas']) ? auth()->id() : null)
+                            ->placeholder('Akan terisi otomatis saat disetujui')
                             ->searchable()
                             ->preload(),
 
@@ -140,6 +146,12 @@ class PeminjamanResource extends Resource
                         Select::make('status')
                             ->label('Status')
                             ->native(false)
+                            // 1. Set default ke Pending
+                            ->default(Peminjaman::STATUS_PENDING)
+                            // 2. Disable jika user bukan admin/petugas
+                            ->disabled(fn() => !auth()->user()?->hasAnyRole(['super_admin', 'petugas']))
+                            // 3. Pastikan tetap terkirim ke database meskipun disabled (agar default masuk)
+                            ->dehydrated()
                             ->options(fn(string $operation) => match ($operation) {
                                 'create' => [
                                     Peminjaman::STATUS_PENDING => 'Pending',
@@ -152,8 +164,14 @@ class PeminjamanResource extends Resource
                                     Peminjaman::STATUS_DIBATALKAN => 'Dibatalkan',
                                 ],
                             })
-                            ->helperText('Status "Dikembalikan" dan "Terlambat" ditetapkan otomatis oleh sistem.')
+                            ->helperText(function () {
+                                if (!auth()->user()?->hasAnyRole(['super_admin', 'petugas'])) {
+                                    return 'Status default adalah "Pending". Hanya petugas yang dapat mengubah status.';
+                                }
+                                return 'Status "Dikembalikan" dan "Terlambat" ditetapkan otomatis oleh sistem.';
+                            })
                             ->required(),
+
 
                         TextInput::make('keperluan')
                             ->label('Keperluan')
@@ -162,6 +180,14 @@ class PeminjamanResource extends Resource
                         TextInput::make('lokasi_penggunaan')
                             ->label('Lokasi Penggunaan')
                             ->maxLength(255),
+
+                        FileUpload::make('file')
+                            ->label('Upload Bukti Peminjaman')
+                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                            ->maxSize(5120)
+                            ->disk('public')
+                            ->directory('peminjaman_files')
+                            ->helperText('Unggah bukti peminjaman Anda (surat tugas, izin, dll). Format: JPEG, PNG, PDF. Maksimal ukuran file 5MB.'),
 
                         Textarea::make('catatan')
                             ->label('Catatan')

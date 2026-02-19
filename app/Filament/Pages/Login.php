@@ -7,6 +7,7 @@ use Filament\Facades\Filament;
 use Filament\Forms\Components\Component;
 use Filament\Forms\Components\TextInput;
 use Filament\Pages\Auth\Login as BaseLogin;
+use Filament\Notifications\Notification;
 use Illuminate\Contracts\View\View;
 use Filament\Http\Responses\Auth\Contracts\LoginResponse;
 use Filament\Models\Contracts\FilamentUser;
@@ -36,6 +37,7 @@ class Login extends BaseLogin
         // Check if user exists and was created through social login (password is null)
         if ($login) {
             $user = User::where($field, $login)->first();
+
             if ($user && is_null($user->password)) {
                 throw ValidationException::withMessages([
                     'data.login' => 'This account was created using social login. Please login with Google.',
@@ -48,6 +50,25 @@ class Login extends BaseLogin
         }
 
         $user = Filament::auth()->user();
+
+        // ===== TAMBAHAN: CEK STATUS VERIFIKASI =====
+        if (!$user->status) {
+            // Logout user
+            Filament::auth()->logout();
+
+            // Tampilkan notifikasi
+            Notification::make()
+                ->title('Akun Belum Diverifikasi')
+                ->body('Akun Anda sedang dalam proses review oleh admin. Silakan tunggu hingga akun Anda diaktifkan.')
+                ->warning()
+                ->persistent()
+                ->send();
+
+            throw ValidationException::withMessages([
+                'data.login' => 'Akun Anda sedang menunggu verifikasi dari admin.',
+            ]);
+        }
+        // ===== AKHIR TAMBAHAN =====
 
         if (
             ($user instanceof FilamentUser) &&
@@ -67,6 +88,7 @@ class Login extends BaseLogin
     {
         parent::mount();
     }
+
     /**
      * @return array<int | string, string | Form>
      */

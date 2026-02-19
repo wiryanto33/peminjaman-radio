@@ -21,4 +21,14 @@ class EditPeminjaman extends EditRecord
     {
         return $this->getResource()::getUrl('index');
     }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        // Jika status diubah menjadi approved/dipinjam oleh petugas
+        if (in_array($data['status'], ['approved', 'dipinjam'])) {
+            $data['petugas_id'] = auth()->id();
+        }
+
+        return $data;
+    }
 }
