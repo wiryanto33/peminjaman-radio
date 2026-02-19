@@ -59,6 +59,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar //,MustVer
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'status' => 'boolean',
         ];
     }
 

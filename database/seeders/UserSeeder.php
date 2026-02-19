@@ -21,6 +21,7 @@ class UserSeeder extends Seeder
             'satuan' => 'Diskomlek Koarmada II',
             'email' => 'superadminn@gmail.com',
             'password' => 'password',
+            'status' => true,
         ]);
     }
 }

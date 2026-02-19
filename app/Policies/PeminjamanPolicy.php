@@ -23,14 +23,6 @@ class PeminjamanPolicy
      */
     public function view(User $user, Peminjaman $peminjaman): bool
     {
-        // Super admin dapat melihat semua
-        if ($user->hasRole('super_admin')) {
-            return true;
-        }
-
-        if ($user->hasRole('peminjam')) {
-            return $peminjaman->peminjam_id === $user->id;
-        }
         return $user->can('view_peminjaman');
     }
 

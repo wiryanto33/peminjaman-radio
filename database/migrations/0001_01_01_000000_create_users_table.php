@@ -14,6 +14,8 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name')->unique();
+            $table->string('file')->nullable();
+            $table->boolean('status')->default(false);
             $table->string('pangkat')->nullable();
             $table->string('korps')->nullable();
             $table->string('nrp')->unique()->nullable();
