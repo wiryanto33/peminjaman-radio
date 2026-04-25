@@ -181,12 +181,25 @@ class PeminjamanResource extends Resource
                             ->label('Lokasi Penggunaan')
                             ->maxLength(255),
 
+                        FileUpload::make('surat_permohonan')
+                            ->label('Upload Surat Permohonan')
+                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                            ->maxSize(5120)
+                            ->disk('public')
+                            ->directory('peminjaman_surat')
+                            ->required(fn() => auth()->user()?->hasRole('peminjam'))
+                            ->downloadable()
+                            ->openable()
+                            ->helperText('Unggah surat permohonan peminjaman. Format: JPEG, PNG, PDF. Maksimal ukuran file 5MB.'),
+
                         FileUpload::make('file')
                             ->label('Upload Bukti Peminjaman')
                             ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
                             ->maxSize(5120)
                             ->disk('public')
                             ->directory('peminjaman_files')
+                            ->downloadable()
+                            ->openable()
                             ->helperText('Unggah bukti peminjaman Anda (surat tugas, izin, dll). Format: JPEG, PNG, PDF. Maksimal ukuran file 5MB.'),
 
                         Textarea::make('catatan')
@@ -247,6 +260,13 @@ class PeminjamanResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
+
+                TextColumn::make('surat_permohonan')
+                    ->label('Surat Permohonan')
+                    ->formatStateUsing(fn ($state) => $state ? 'Tersedia' : 'Tidak Ada')
+                    ->badge()
+                    ->color(fn ($state) => $state ? 'success' : 'danger')
+                    ->toggleable(),
 
                 TextColumn::make('keperluan')
                     ->label('Keperluan')

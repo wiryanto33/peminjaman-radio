@@ -29,6 +29,7 @@ class Peminjaman extends Model
         'tgl_jatuh_tempo',
         'status',
         'file',
+        'surat_permohonan',
         'keperluan',
         'lokasi_penggunaan',
         'catatan',
