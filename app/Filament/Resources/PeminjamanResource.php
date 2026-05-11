@@ -200,7 +200,11 @@ class PeminjamanResource extends Resource
                             ->directory('peminjaman_files')
                             ->downloadable()
                             ->openable()
-                            ->helperText('Unggah bukti peminjaman Anda (surat tugas, izin, dll). Format: JPEG, PNG, PDF. Maksimal ukuran file 5MB.'),
+                            ->disabled(fn() => auth()->user()?->hasRole('peminjam'))
+                            ->dehydrated(fn($state) => filled($state))
+                            ->helperText(fn() => auth()->user()?->hasRole('peminjam') 
+                                ? 'Hanya petugas yang dapat mengunggah bukti peminjaman.' 
+                                : 'Unggah bukti peminjaman (surat tugas, izin, dll). Format: JPEG, PNG, PDF. Maksimal ukuran file 5MB.'),
 
                         Textarea::make('catatan')
                             ->label('Catatan')

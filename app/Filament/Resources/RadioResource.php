@@ -12,6 +12,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -209,6 +210,13 @@ class RadioResource extends Resource
                         Textarea::make('catatan')
                             ->label('Catatan')
                             ->columnSpanFull(),
+                        FileUpload::make('surat_permohonan')
+                            ->label('Surat Peminjaman')
+                            ->directory('peminjaman_surat')
+                            ->disk('public')
+                            ->required()
+                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                            ->maxSize(5120),
                     ])
                     ->action(function (array $data, Radio $record) {
                         $user = auth()->user();
@@ -222,6 +230,7 @@ class RadioResource extends Resource
                             return;
                         }
                         Peminjaman::create([
+                            'kode_peminjaman' => Peminjaman::generateKode(),
                             'radio_id' => $record->id,
                             'jumlah' => $jumlah,
                             'peminjam_id' => $user->id,
@@ -232,6 +241,7 @@ class RadioResource extends Resource
                             'keperluan' => $data['keperluan'] ?? null,
                             'lokasi_penggunaan' => $data['lokasi_penggunaan'] ?? null,
                             'catatan' => $data['catatan'] ?? null,
+                            'surat_permohonan' => $data['surat_permohonan'] ?? null,
                         ]);
 
                         Notification::make()
@@ -274,6 +284,13 @@ class RadioResource extends Resource
                         Textarea::make('catatan')
                             ->label('Catatan')
                             ->columnSpanFull(),
+                        FileUpload::make('surat_permohonan')
+                            ->label('Surat Peminjaman')
+                            ->directory('peminjaman_surat')
+                            ->disk('public')
+                            ->required()
+                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                            ->maxSize(5120),
                     ])
                     ->action(function (array $data, Collection $records) {
                         $user = auth()->user();
@@ -297,6 +314,7 @@ class RadioResource extends Resource
 
                             try {
                                 Peminjaman::create([
+                                    'kode_peminjaman' => Peminjaman::generateKode(),
                                     'radio_id' => $radio->id,
                                     'jumlah' => $jumlah,
                                     'peminjam_id' => $user->id,
@@ -307,6 +325,7 @@ class RadioResource extends Resource
                                     'keperluan' => $data['keperluan'] ?? null,
                                     'lokasi_penggunaan' => $data['lokasi_penggunaan'] ?? null,
                                     'catatan' => $data['catatan'] ?? null,
+                                    'surat_permohonan' => $data['surat_permohonan'] ?? null,
                                 ]);
                                 $created++;
                             } catch (\Throwable $e) {
