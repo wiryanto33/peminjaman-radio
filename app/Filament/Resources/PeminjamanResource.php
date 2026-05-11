@@ -187,7 +187,7 @@ class PeminjamanResource extends Resource
                             ->maxSize(5120)
                             ->disk('public')
                             ->directory('peminjaman_surat')
-                            ->required(fn() => auth()->user()?->hasRole('peminjam'))
+                            ->required(fn() => !auth()->user()?->hasAnyRole(['super_admin', 'petugas']))
                             ->downloadable()
                             ->openable()
                             ->helperText('Unggah surat permohonan peminjaman. Format: JPEG, PNG, PDF. Maksimal ukuran file 5MB.'),
@@ -200,9 +200,9 @@ class PeminjamanResource extends Resource
                             ->directory('peminjaman_files')
                             ->downloadable()
                             ->openable()
-                            ->disabled(fn() => auth()->user()?->hasRole('peminjam'))
+                            ->disabled(fn() => !auth()->user()?->hasAnyRole(['super_admin', 'petugas']))
                             ->dehydrated(fn($state) => filled($state))
-                            ->helperText(fn() => auth()->user()?->hasRole('peminjam') 
+                            ->helperText(fn() => !auth()->user()?->hasAnyRole(['super_admin', 'petugas']) 
                                 ? 'Hanya petugas yang dapat mengunggah bukti peminjaman.' 
                                 : 'Unggah bukti peminjaman (surat tugas, izin, dll). Format: JPEG, PNG, PDF. Maksimal ukuran file 5MB.'),
 
