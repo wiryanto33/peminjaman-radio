@@ -18,6 +18,7 @@ class KaidoSetting extends Settings
     public ?string $auth_logo_path = null;
     public ?string $auth_background_path = null;
     public int $auth_card_opacity = 90;
+    public ?string $auth_app_title = null;
 
     public static function group(): string
     {
