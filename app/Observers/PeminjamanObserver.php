@@ -118,28 +118,20 @@ class PeminjamanObserver
             $from = $model->getOriginal('status');
             $to   = $model->status;
 
-            // Perubahan ke DIKEMBALIKAN diperbolehkan (dipicu oleh proses Pengembalian)
-
-            // Saat mengubah menjadi DIPINJAM, validasi stok dan kurangi stok
+            // Validasi stok SEBELUM disimpan (tapi update stok dilakukan di updated())
             if ($to === Peminjaman::STATUS_DIPINJAM) {
-                \DB::transaction(function () use ($model) {
-                    $radio = Radio::whereKey($model->radio_id)->lockForUpdate()->first();
-                    if (!$radio) {
-                        throw ValidationException::withMessages([
-                            'radio_id' => 'Radio tidak ditemukan.',
-                        ]);
-                    }
-                    $qty = max(1, (int) ($model->jumlah ?? 1));
-                    if ((int) $radio->stok < $qty) {
-                        throw ValidationException::withMessages([
-                            'radio_id' => 'Stok radio tidak mencukupi untuk dipinjam.',
-                        ]);
-                    }
-                    $radio->stok = (int) $radio->stok - $qty;
-                    // Set status: STOK_HABIS jika stok 0, DIPINJAM jika masih ada stok tapi ada yang dipinjam
-                    $radio->status = (int) $radio->stok === 0 ? Radio::STATUS_STOK_HABIS : Radio::STATUS_DIPINJAM;
-                    $radio->save();
-                });
+                $radio = Radio::find($model->radio_id);
+                if (!$radio) {
+                    throw ValidationException::withMessages([
+                        'radio_id' => 'Radio tidak ditemukan.',
+                    ]);
+                }
+                $qty = max(1, (int) ($model->jumlah ?? 1));
+                if ((int) $radio->stok < $qty) {
+                    throw ValidationException::withMessages([
+                        'radio_id' => 'Stok radio tidak mencukupi untuk dipinjam.',
+                    ]);
+                }
             }
         }
     }
@@ -148,22 +140,30 @@ class PeminjamanObserver
     {
         // Sinkron status radio setelah perubahan berhasil disimpan
         if ($model->wasChanged('status')) {
-            switch ($model->status) {
-                case Peminjaman::STATUS_DIPINJAM:
-                    // Generate bukti penyerahan PDF (best-effort)
-                    try {
-                        app(BuktiPenyerahanService::class)->generate($model);
-                    } catch (\Throwable $e) {
-                        \Log::warning('Gagal generate bukti penyerahan: '.$e->getMessage(), [
-                            'peminjaman_id' => $model->id,
-                        ]);
-                    }
-                    break;
-                case Peminjaman::STATUS_DIBATALKAN:
-                    break;
-                // APPROVED/TERLAMBAT → tidak ubah status radio di sini
-                default:
-                    break;
+            $to = $model->status;
+
+            // Saat status berubah menjadi DIPINJAM → kurangi stok radio
+            if ($to === Peminjaman::STATUS_DIPINJAM) {
+                \DB::transaction(function () use ($model) {
+                    $radio = Radio::whereKey($model->radio_id)->lockForUpdate()->first();
+                    if (!$radio) return;
+                    $qty = max(1, (int) ($model->jumlah ?? 1));
+                    // Kurangi stok (tidak boleh minus)
+                    $radio->stok = max(0, (int) $radio->stok - $qty);
+                    $radio->status = (int) $radio->stok === 0
+                        ? Radio::STATUS_STOK_HABIS
+                        : Radio::STATUS_DIPINJAM;
+                    $radio->save();
+                });
+
+                // Generate bukti penyerahan PDF (best-effort)
+                try {
+                    app(BuktiPenyerahanService::class)->generate($model);
+                } catch (\Throwable $e) {
+                    \Log::warning('Gagal generate bukti penyerahan: ' . $e->getMessage(), [
+                        'peminjaman_id' => $model->id,
+                    ]);
+                }
             }
 
             // Notifikasi ke peminjam saat status berubah
@@ -172,9 +172,8 @@ class PeminjamanObserver
                 $notif = Notification::make()
                     ->title('Status Peminjaman Diperbarui')
                     ->body(
-                        'Kode: '.($model->kode_peminjaman ?: ('#'.$model->id))."\n".
-
-                        'Status sekarang: '.ucfirst($model->status)
+                        'Kode: ' . ($model->kode_peminjaman ?: ('#' . $model->id)) . "\n" .
+                        'Status sekarang: ' . ucfirst($model->status)
                     )
                     ->icon('heroicon-o-information-circle')
                     ->actions([

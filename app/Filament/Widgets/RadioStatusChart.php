@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\Peminjaman;
 use App\Models\Radio;
 use Filament\Widgets\ChartWidget;
 
@@ -18,17 +19,29 @@ class RadioStatusChart extends ChartWidget
 
     protected function getData(): array
     {
-        $tersedia = Radio::where('status', Radio::STATUS_TERSEDIA)->count();
-        $dipinjam = Radio::where('status', Radio::STATUS_DIPINJAM)->count();
+        $total = Radio::count();
+
+        // ID radio yang sedang aktif dipinjam (ada peminjaman aktif)
+        $activeRadioIds = Peminjaman::whereIn('status', [
+            Peminjaman::STATUS_DIPINJAM,
+            Peminjaman::STATUS_APPROVED,
+            Peminjaman::STATUS_TERLAMBAT,
+        ])->pluck('radio_id')->unique()->values()->all();
+
+        $dipinjam  = count($activeRadioIds);
         $perbaikan = Radio::where('status', Radio::STATUS_PERBAIKAN)->count();
-        $stokHabis = Radio::where('status', Radio::STATUS_STOK_HABIS)->count();
+        $stokHabis = Radio::where('stok', 0)
+            ->whereNotIn('id', $activeRadioIds)
+            ->where('status', '!=', Radio::STATUS_PERBAIKAN)
+            ->count();
+        $tersedia  = max(0, $total - $dipinjam - $perbaikan - $stokHabis);
 
         return [
-            'labels' => ['Tersedia', 'Dipinjam', 'Perbaikan', 'Stok Habis'],
+            'labels'   => ['Tersedia', 'Dipinjam', 'Perbaikan', 'Stok Habis'],
             'datasets' => [
                 [
-                    'label' => 'Status',
-                    'data' => [$tersedia, $dipinjam, $perbaikan, $stokHabis],
+                    'label'           => 'Status',
+                    'data'            => [$tersedia, $dipinjam, $perbaikan, $stokHabis],
                     'backgroundColor' => ['#10b981', '#f59e0b', '#ef4444', '#dc2626'],
                 ],
             ],
