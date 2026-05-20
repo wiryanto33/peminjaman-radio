@@ -2,16 +2,14 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Peminjaman;
 use App\Models\Radio;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Card;
-use Illuminate\Support\Facades\DB;
 
 class RadioStatsOverview extends BaseWidget
 {
-    protected static ?int $sort = -100; // ensure appears at the top
-    protected static ?string $pollingInterval = '60s';
+    protected static ?int $sort = -100;
+    protected static ?string $pollingInterval = '15s';
 
     public static function canView(): bool
     {
@@ -21,33 +19,17 @@ class RadioStatsOverview extends BaseWidget
 
     protected function getCards(): array
     {
-        $total = Radio::count();
-
-        // ID radio yang sedang aktif dipinjam (ada peminjaman aktif)
-        $activeRadioIds = Peminjaman::whereIn('status', [
-            Peminjaman::STATUS_DIPINJAM,
-            Peminjaman::STATUS_APPROVED,
-            Peminjaman::STATUS_TERLAMBAT,
-        ])->pluck('radio_id')->unique()->values()->all();
-
-        // Dipinjam: radio yang punya peminjaman aktif
-        $dipinjam = count($activeRadioIds);
-
-        // Perbaikan: dari kolom status radio
+        // Setiap Radio = 1 unit fisik dengan serial_no unik.
+        // Status radio mencerminkan kondisi UNIT tersebut secara langsung.
+        $total     = Radio::count();
+        $tersedia  = Radio::where('status', Radio::STATUS_TERSEDIA)->count();
+        $dipinjam  = Radio::where('status', Radio::STATUS_DIPINJAM)->count();
         $perbaikan = Radio::where('status', Radio::STATUS_PERBAIKAN)->count();
+        $stokHabis = Radio::where('status', Radio::STATUS_STOK_HABIS)->count();
 
-        // Stok habis: radio dengan stok = 0 dan TIDAK sedang dipinjam dan TIDAK perbaikan
-        $stokHabis = Radio::where('stok', 0)
-            ->whereNotIn('id', $activeRadioIds)
-            ->where('status', '!=', Radio::STATUS_PERBAIKAN)
-            ->count();
-
-        // Tersedia: total - dipinjam - perbaikan - stokHabis
-        $tersedia = max(0, $total - $dipinjam - $perbaikan - $stokHabis);
-
-        $baik = Radio::where('kondisi', Radio::KONDISI_BAIK)->count();
+        $baik        = Radio::where('kondisi', Radio::KONDISI_BAIK)->count();
         $rusakRingan = Radio::where('kondisi', Radio::KONDISI_RUSAK_RINGAN)->count();
-        $rusakBerat = Radio::where('kondisi', Radio::KONDISI_RUSAK_BERAT)->count();
+        $rusakBerat  = Radio::where('kondisi', Radio::KONDISI_RUSAK_BERAT)->count();
 
         return [
             Card::make('Total Radio', (string) $total)->icon('heroicon-o-rectangle-stack'),

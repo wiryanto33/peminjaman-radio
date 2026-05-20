@@ -22,7 +22,7 @@ class PengembalianObserver
 
     public function updated(Pengembalian $model): void
     {
-        // Jika kondisi/radio diubah, proses ulang sinkronisasi
+        // Jika kondisi dikembalikan diubah, proses ulang sinkronisasi
         if ($model->wasChanged(['kondisi_kembali', 'radio_id'])) {
             $this->service->processReturn($model);
         }
@@ -32,28 +32,27 @@ class PengembalianObserver
     {
         $user = Auth::user();
         $allowed = $user && ($user->hasRole('super_admin') || $user->can('delete_pengembalian'));
-        if (! $allowed) {
+        if (!$allowed) {
             throw ValidationException::withMessages([
                 'delete' => 'Anda tidak diizinkan menghapus data pengembalian.',
             ]);
         }
 
-        // Rollback status sebelum pengembalian dibuat
+        // Rollback: batalkan pengembalian → radio kembali ke status DIPINJAM
+        // (karena pengembalian dihapus, berarti radio dianggap masih dipinjam)
         DB::transaction(function () use ($model) {
             $peminjaman = Peminjaman::whereKey($model->peminjaman_id)->lockForUpdate()->first();
-            $radio = Radio::whereKey($model->radio_id)->lockForUpdate()->first();
+            $radio      = Radio::whereKey($model->radio_id)->lockForUpdate()->first();
 
             if ($peminjaman) {
                 $peminjaman->status = Peminjaman::STATUS_DIPINJAM;
                 $peminjaman->save();
             }
+
             if ($radio) {
-                // Revert stok jika sebelumnya pengembalian berstatus "baik" (stok sempat ditambah)
-                if ($peminjaman && $model->kondisi_kembali === \App\Models\Pengembalian::KONDISI_BAIK) {
-                    $qty = max(1, (int) ($peminjaman->jumlah ?? 1));
-                    $radio->stok = max(0, (int) $radio->stok - $qty);
-                }
-                $radio->status = (int) $radio->stok === 0 ? Radio::STATUS_STOK_HABIS : Radio::STATUS_DIPINJAM;
+                // Radio kembali ke status DIPINJAM (unit fisik masih di tangan peminjam)
+                $radio->status = Radio::STATUS_DIPINJAM;
+                $radio->stok   = 0;
                 $radio->save();
             }
         });

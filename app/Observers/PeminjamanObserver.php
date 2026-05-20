@@ -27,18 +27,28 @@ class PeminjamanObserver
             $model->kode_peminjaman = Peminjaman::generateKode();
         }
 
-        // Pastikan radio available saat pertama kali membuat (untuk PENDING)
+        // Setiap Radio = 1 unit fisik dengan serial_no unik.
+        // Validasi: radio harus dalam kondisi TERSEDIA (bukan dipinjam/perbaikan)
         if ($model->radio_id) {
             $radio = Radio::find($model->radio_id);
-            if (!$radio || (int) $radio->stok <= 0) {
+            if (!$radio) {
                 throw ValidationException::withMessages([
-                    'radio_id' => 'Stok radio tidak tersedia untuk dibuatkan peminjaman.',
+                    'radio_id' => 'Radio tidak ditemukan.',
                 ]);
             }
-            $qty = max(1, (int) ($model->jumlah ?? 1));
-            if ((int) $radio->stok < $qty) {
+            if ($radio->status === Radio::STATUS_PERBAIKAN) {
                 throw ValidationException::withMessages([
-                    'jumlah' => 'Jumlah melebihi stok tersedia ('.$radio->stok.').',
+                    'radio_id' => 'Radio sedang dalam perbaikan dan tidak dapat dipinjam.',
+                ]);
+            }
+            if ($radio->status === Radio::STATUS_DIPINJAM) {
+                throw ValidationException::withMessages([
+                    'radio_id' => 'Radio (serial: ' . $radio->serial_no . ') sedang dipinjam oleh orang lain.',
+                ]);
+            }
+            if ($radio->stok <= 0 || $radio->status === Radio::STATUS_STOK_HABIS) {
+                throw ValidationException::withMessages([
+                    'radio_id' => 'Radio tidak tersedia untuk dipinjam.',
                 ]);
             }
         }
@@ -46,27 +56,15 @@ class PeminjamanObserver
 
     public function created(Peminjaman $model): void
     {
-        // Jika langsung dibuat dengan status DIPINJAM, kurangi stok dan set status radio
+        // Jika langsung dibuat dengan status DIPINJAM, ubah status radio
         if ($model->status === Peminjaman::STATUS_DIPINJAM && $model->radio_id) {
-            \DB::transaction(function () use ($model) {
-                $radio = Radio::whereKey($model->radio_id)->lockForUpdate()->first();
-                if (!$radio) return;
-                $qty = max(1, (int) ($model->jumlah ?? 1));
-                if ((int) $radio->stok < $qty) {
-                    throw ValidationException::withMessages([
-                        'radio_id' => 'Stok radio tidak mencukupi.',
-                    ]);
-                }
-                $radio->stok = (int) $radio->stok - $qty;
-                // Set status: STOK_HABIS jika stok 0, DIPINJAM jika masih ada stok tapi ada yang dipinjam
-                $radio->status = (int) $radio->stok === 0 ? Radio::STATUS_STOK_HABIS : Radio::STATUS_DIPINJAM;
-                $radio->save();
-            });
+            $this->setRadioDipinjam($model);
+
             // Generate bukti penyerahan PDF (best-effort)
             try {
                 app(BuktiPenyerahanService::class)->generate($model);
             } catch (\Throwable $e) {
-                \Log::warning('Gagal generate bukti penyerahan: '.$e->getMessage(), [
+                \Log::warning('Gagal generate bukti penyerahan: ' . $e->getMessage(), [
                     'peminjaman_id' => $model->id,
                 ]);
             }
@@ -80,10 +78,9 @@ class PeminjamanObserver
                 $notif = Notification::make()
                     ->title('Permohonan Peminjaman Baru')
                     ->body(
-                        'Kode: '.($model->kode_peminjaman ?: ('#'.$model->id))."\n".
-                        'Peminjam: '.($model->peminjam?->name ?: '-') . "\n" .
-                        'Radio: '.($model->radio?->serial_no ?: '-')
-
+                        'Kode: ' . ($model->kode_peminjaman ?: ('#' . $model->id)) . "\n" .
+                        'Peminjam: ' . ($model->peminjam?->name ?: '-') . "\n" .
+                        'Radio: ' . ($model->radio?->serial_no ?: '-')
                     )
                     ->icon('heroicon-o-inbox-arrow-down')
                     ->actions([
@@ -107,7 +104,7 @@ class PeminjamanObserver
 
     public function updating(Peminjaman $model): void
     {
-        // Cegah ubah radio_id setelah aktif
+        // Cegah ubah radio_id setelah peminjaman aktif
         if ($model->isDirty('radio_id') && $model->getOriginal('status') !== Peminjaman::STATUS_PENDING) {
             throw ValidationException::withMessages([
                 'radio_id' => 'Radio tidak dapat diubah setelah peminjaman berjalan.',
@@ -115,10 +112,9 @@ class PeminjamanObserver
         }
 
         if ($model->isDirty('status')) {
-            $from = $model->getOriginal('status');
-            $to   = $model->status;
+            $to = $model->status;
 
-            // Validasi stok SEBELUM disimpan (tapi update stok dilakukan di updated())
+            // Validasi: radio harus tersedia sebelum diubah ke DIPINJAM
             if ($to === Peminjaman::STATUS_DIPINJAM) {
                 $radio = Radio::find($model->radio_id);
                 if (!$radio) {
@@ -126,10 +122,15 @@ class PeminjamanObserver
                         'radio_id' => 'Radio tidak ditemukan.',
                     ]);
                 }
-                $qty = max(1, (int) ($model->jumlah ?? 1));
-                if ((int) $radio->stok < $qty) {
+                // Boleh jika masih TERSEDIA atau APPROVED (stok > 0)
+                if ($radio->status === Radio::STATUS_PERBAIKAN) {
                     throw ValidationException::withMessages([
-                        'radio_id' => 'Stok radio tidak mencukupi untuk dipinjam.',
+                        'radio_id' => 'Radio sedang dalam perbaikan, tidak bisa dipinjam.',
+                    ]);
+                }
+                if ($radio->stok <= 0 && $radio->status !== Radio::STATUS_DIPINJAM) {
+                    throw ValidationException::withMessages([
+                        'radio_id' => 'Radio tidak tersedia (stok habis).',
                     ]);
                 }
             }
@@ -138,23 +139,12 @@ class PeminjamanObserver
 
     public function updated(Peminjaman $model): void
     {
-        // Sinkron status radio setelah perubahan berhasil disimpan
         if ($model->wasChanged('status')) {
             $to = $model->status;
 
-            // Saat status berubah menjadi DIPINJAM → kurangi stok radio
+            // → DIPINJAM: tandai radio sebagai dipinjam (stok = 0)
             if ($to === Peminjaman::STATUS_DIPINJAM) {
-                \DB::transaction(function () use ($model) {
-                    $radio = Radio::whereKey($model->radio_id)->lockForUpdate()->first();
-                    if (!$radio) return;
-                    $qty = max(1, (int) ($model->jumlah ?? 1));
-                    // Kurangi stok (tidak boleh minus)
-                    $radio->stok = max(0, (int) $radio->stok - $qty);
-                    $radio->status = (int) $radio->stok === 0
-                        ? Radio::STATUS_STOK_HABIS
-                        : Radio::STATUS_DIPINJAM;
-                    $radio->save();
-                });
+                $this->setRadioDipinjam($model);
 
                 // Generate bukti penyerahan PDF (best-effort)
                 try {
@@ -163,6 +153,15 @@ class PeminjamanObserver
                     \Log::warning('Gagal generate bukti penyerahan: ' . $e->getMessage(), [
                         'peminjaman_id' => $model->id,
                     ]);
+                }
+            }
+
+            // → DIBATALKAN: kembalikan radio ke status tersedia (jika sebelumnya sudah dipinjam)
+            if ($to === Peminjaman::STATUS_DIBATALKAN) {
+                $from = $model->getOriginal('status');
+                // Hanya kembalikan jika sebelumnya sudah dipinjam (bukan sekedar pending/approved)
+                if ($from === Peminjaman::STATUS_DIPINJAM) {
+                    $this->setRadioTersedia($model->radio_id);
                 }
             }
 
@@ -206,5 +205,42 @@ class PeminjamanObserver
                 'delete' => 'Peminjaman aktif tidak boleh dihapus. Batalkan atau selesaikan pengembalian.',
             ]);
         }
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────────────────
+
+    /**
+     * Tandai radio sebagai DIPINJAM.
+     * Karena 1 Radio = 1 unit fisik, stok langsung jadi 0 dan status = dipinjam.
+     */
+    private function setRadioDipinjam(Peminjaman $model): void
+    {
+        \DB::transaction(function () use ($model) {
+            $radio = Radio::whereKey($model->radio_id)->lockForUpdate()->first();
+            if (!$radio) return;
+
+            $radio->status = Radio::STATUS_DIPINJAM;
+            $radio->stok   = 0;
+            $radio->save();
+        });
+    }
+
+    /**
+     * Kembalikan radio ke status TERSEDIA.
+     * Dipanggil saat peminjaman dibatalkan.
+     */
+    private function setRadioTersedia(int $radioId): void
+    {
+        \DB::transaction(function () use ($radioId) {
+            $radio = Radio::whereKey($radioId)->lockForUpdate()->first();
+            if (!$radio) return;
+
+            // Hanya kembalikan jika statusnya DIPINJAM (jangan overwrite PERBAIKAN)
+            if ($radio->status === Radio::STATUS_DIPINJAM) {
+                $radio->status = Radio::STATUS_TERSEDIA;
+                $radio->stok   = 1;
+                $radio->save();
+            }
+        });
     }
 }
