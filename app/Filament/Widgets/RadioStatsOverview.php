@@ -28,8 +28,6 @@ class RadioStatsOverview extends BaseWidget
         $stokHabis = Radio::where('status', Radio::STATUS_STOK_HABIS)->count();
 
         $baik        = Radio::where('kondisi', Radio::KONDISI_BAIK)->count();
-        $rusakRingan = Radio::where('kondisi', Radio::KONDISI_RUSAK_RINGAN)->count();
-        $rusakBerat  = Radio::where('kondisi', Radio::KONDISI_RUSAK_BERAT)->count();
 
         return [
             Card::make('Total Radio', (string) $total)->icon('heroicon-o-rectangle-stack'),
@@ -38,8 +36,6 @@ class RadioStatsOverview extends BaseWidget
             Card::make('Perbaikan', (string) $perbaikan)->icon('heroicon-o-wrench')->color('danger'),
             Card::make('Stok Habis', (string) $stokHabis)->icon('heroicon-o-no-symbol')->color('danger'),
             Card::make('Kondisi Baik', (string) $baik)->icon('heroicon-o-check-badge')->color('success'),
-            Card::make('Rusak Ringan', (string) $rusakRingan)->icon('heroicon-o-exclamation-triangle')->color('warning'),
-            Card::make('Rusak Berat', (string) $rusakBerat)->icon('heroicon-o-x-circle')->color('danger'),
         ];
     }
 }
