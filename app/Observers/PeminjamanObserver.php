@@ -58,7 +58,8 @@ class PeminjamanObserver
                     ]);
                 }
                 $radio->stok = (int) $radio->stok - $qty;
-                $radio->status = (int) $radio->stok === 0 ? Radio::STATUS_STOK_HABIS : Radio::STATUS_TERSEDIA;
+                // Set status: STOK_HABIS jika stok 0, DIPINJAM jika masih ada stok tapi ada yang dipinjam
+                $radio->status = (int) $radio->stok === 0 ? Radio::STATUS_STOK_HABIS : Radio::STATUS_DIPINJAM;
                 $radio->save();
             });
             // Generate bukti penyerahan PDF (best-effort)
@@ -135,7 +136,8 @@ class PeminjamanObserver
                         ]);
                     }
                     $radio->stok = (int) $radio->stok - $qty;
-                    $radio->status = (int) $radio->stok === 0 ? Radio::STATUS_STOK_HABIS : Radio::STATUS_TERSEDIA;
+                    // Set status: STOK_HABIS jika stok 0, DIPINJAM jika masih ada stok tapi ada yang dipinjam
+                    $radio->status = (int) $radio->stok === 0 ? Radio::STATUS_STOK_HABIS : Radio::STATUS_DIPINJAM;
                     $radio->save();
                 });
             }

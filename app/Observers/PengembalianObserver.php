@@ -53,7 +53,7 @@ class PengembalianObserver
                     $qty = max(1, (int) ($peminjaman->jumlah ?? 1));
                     $radio->stok = max(0, (int) $radio->stok - $qty);
                 }
-                $radio->status = (int) $radio->stok === 0 ? Radio::STATUS_STOK_HABIS : Radio::STATUS_TERSEDIA;
+                $radio->status = (int) $radio->stok === 0 ? Radio::STATUS_STOK_HABIS : Radio::STATUS_DIPINJAM;
                 $radio->save();
             }
         });
