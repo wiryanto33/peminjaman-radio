@@ -250,14 +250,16 @@ class PeminjamanResource extends Resource
                 TextColumn::make('tgl_jatuh_tempo')
                     ->label('Jatuh Tempo')
                     ->dateTime('d M Y H:i')
-                    ->sortable(),
+                    ->sortable()
+                    ->color(fn (Peminjaman $record) => in_array($record->status, [Peminjaman::STATUS_DIPINJAM, Peminjaman::STATUS_TERLAMBAT]) && $record->tgl_jatuh_tempo < now() ? 'danger' : null)
+                    ->weight(fn (Peminjaman $record) => in_array($record->status, [Peminjaman::STATUS_DIPINJAM, Peminjaman::STATUS_TERLAMBAT]) && $record->tgl_jatuh_tempo < now() ? 'bold' : null),
 
                 TextColumn::make('status')
                     ->badge()
-                    ->color(fn(string $state) => match ($state) {
+                    ->color(fn(string $state, Peminjaman $record) => match ($state) {
                         Peminjaman::STATUS_PENDING => 'gray',
                         Peminjaman::STATUS_APPROVED => 'info',
-                        Peminjaman::STATUS_DIPINJAM => 'warning',
+                        Peminjaman::STATUS_DIPINJAM => $record->tgl_jatuh_tempo < now() ? 'danger' : 'warning',
                         Peminjaman::STATUS_DIKEMBALIKAN => 'success',
                         Peminjaman::STATUS_DIBATALKAN => 'danger',
                         Peminjaman::STATUS_TERLAMBAT => 'danger',

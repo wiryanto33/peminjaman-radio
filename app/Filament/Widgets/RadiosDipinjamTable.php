@@ -40,7 +40,12 @@ class RadiosDipinjamTable extends BaseWidget
                 ->toggleable(),
             TextColumn::make('peminjam.name')->label('Peminjam')->sortable()->searchable(),
             TextColumn::make('tgl_pinjam')->label('Tgl Pinjam')->dateTime('d M Y H:i')->sortable(),
-            TextColumn::make('tgl_jatuh_tempo')->label('Jatuh Tempo')->dateTime('d M Y H:i')->sortable(),
+            TextColumn::make('tgl_jatuh_tempo')
+                ->label('Jatuh Tempo')
+                ->dateTime('d M Y H:i')
+                ->sortable()
+                ->color(fn (Peminjaman $record) => $record->tgl_jatuh_tempo < now() ? 'danger' : null)
+                ->weight(fn (Peminjaman $record) => $record->tgl_jatuh_tempo < now() ? 'bold' : null),
         ];
     }
 }

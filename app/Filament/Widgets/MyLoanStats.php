@@ -21,12 +21,17 @@ class MyLoanStats extends BaseWidget
     {
         $user = auth()->user();
         $activeCount = Peminjaman::where('peminjam_id', $user->id)
-            ->where('status', Peminjaman::STATUS_DIPINJAM)
+            ->whereIn('status', [Peminjaman::STATUS_DIPINJAM, Peminjaman::STATUS_TERLAMBAT])
             ->count();
 
         $overdueCount = Peminjaman::where('peminjam_id', $user->id)
-            ->where('status', Peminjaman::STATUS_DIPINJAM)
-            ->where('tgl_jatuh_tempo', '<', now())
+            ->where(function ($query) {
+                $query->where('status', Peminjaman::STATUS_TERLAMBAT)
+                    ->orWhere(function ($q) {
+                        $q->where('status', Peminjaman::STATUS_DIPINJAM)
+                          ->where('tgl_jatuh_tempo', '<', now());
+                    });
+            })
             ->count();
 
         $historyCount = Peminjaman::where('peminjam_id', $user->id)->count();
