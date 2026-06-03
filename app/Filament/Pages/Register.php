@@ -101,4 +101,49 @@ class Register extends BaseRegister
     {
         return parent::getRegistrationFormComponent();
     }
+
+    public function register(): ?RegistrationResponse
+    {
+        try {
+            $this->rateLimit(2);
+        } catch (\Filament\Http\Exceptions\TooManyRequestsException $exception) {
+            $this->getRateLimitedNotification($exception)?->send();
+
+            return null;
+        }
+
+        $user = $this->wrapInDatabaseTransaction(function () {
+            $this->callHook('beforeValidate');
+
+            $data = $this->form->getState();
+
+            $this->callHook('afterValidate');
+
+            $data = $this->mutateFormDataBeforeRegister($data);
+
+            $this->callHook('beforeRegister');
+
+            $user = $this->handleRegistration($data);
+
+            $this->form->model($user)->saveRelationships();
+
+            $this->callHook('afterRegister');
+
+            return $user;
+        });
+
+        event(new \Illuminate\Auth\Events\Registered($user));
+
+        $this->sendEmailVerificationNotification($user);
+
+        // KUNCI PERBAIKAN: JANGAN login user secara otomatis.
+        // Jika login otomatis dilakukan, session akan diregenerasi,
+        // lalu saat kita logout di RegisterResponse, Livewire akan bingung
+        // dengan token CSRF yang berubah dan menampilkan "Page Expired".
+        // 
+        // Filament::auth()->login($user);
+        // session()->regenerate();
+
+        return app(RegistrationResponse::class);
+    }
 }

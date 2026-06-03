@@ -14,9 +14,6 @@ class RegisterResponse implements RegistrationResponseContract
      */
     public function toResponse($request) // <--- HAPUS TYPE HINT DI SINI
     {
-        // Logout user agar tidak otomatis masuk ke dashboard
-        Filament::auth()->logout();
-
         // Tampilkan notifikasi
         Notification::make()
             ->title('Registrasi Berhasil!')
